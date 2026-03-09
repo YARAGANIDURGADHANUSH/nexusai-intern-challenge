@@ -1,13 +1,15 @@
 # NexusAI Challenge Answers
 
 ## Q1
-Partial transcripts can reduce latency but may cause unnecessary queries if the intent changes mid sentence. A hybrid approach is best where lightweight intent detection runs early but heavier database queries wait until the final transcript.
+Partial transcripts can help reduce response latency because the AI can start processing the message before the user finishes speaking. However, the intent may change mid-sentence, which could lead to incorrect actions or unnecessary database queries.
+A practical approach is to use early intent detection on partial transcripts for lightweight processing, while delaying expensive operations such as database queries or external API calls until the final transcript is available.
 
 ## Q2
-One issue is incorrect solutions entering the knowledge base if CSAT scores are misleading. Another problem is outdated solutions remaining after system updates. This can be prevented using review processes and periodic validation.
+Partial transcripts can help reduce response latency because the AI can start processing the message before the user finishes speaking. However, the intent may change mid-sentence, which could lead to incorrect actions or unnecessary database queries.
+A practical approach is to use early intent detection on partial transcripts for lightweight processing, while delaying expensive operations such as database queries or external API calls until the final transcript is available.
 
 ## Q3
-The AI detects strong negative sentiment and cancellation intent. It apologizes for the issue and immediately escalates to a human agent while passing the transcript and context.
+The system should detect both strong negative sentiment and the cancellation intent. In this situation, the AI should respond politely and acknowledge the customer’s frustration, then escalate the case to a human support agent. The system should pass the conversation transcript and relevant customer context to the agent so they can resolve the issue quickly.
 
 ## Q4
-A useful improvement would be adding vector search to retrieve similar previous support cases so the AI can suggest better solutions.
+The system should detect both strong negative sentiment and the cancellation intent. In this situation, the AI should respond politely and acknowledge the customer’s frustration, then escalate the case to a human support agent. The system should pass the conversation transcript and relevant customer context to the agent so they can resolve the issue quickly.
