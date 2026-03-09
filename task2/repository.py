@@ -1,31 +1,52 @@
 import asyncpg
 
 
-class CallRepository:
+class CallRecordRepository:
 
     def __init__(self, dsn: str):
         self.dsn = dsn
 
-    async def get_connection(self):
-        return await asyncpg.connect(self.dsn)
+    async def save(self, call_data: dict):
 
-    async def lowest_resolution_intents(self):
-
-        conn = await self.get_connection()
+        conn = await asyncpg.connect(self.dsn)
 
         query = """
-        SELECT
-            intent,
-            COUNT(*) AS total_calls,
-            AVG(csat_score) AS avg_csat
-        FROM call_records
-        GROUP BY intent
-        ORDER BY avg_csat ASC
-        LIMIT 3;
+        INSERT INTO call_records
+        (customer_phone, channel, transcript, ai_response,
+         outcome, confidence_score, csat_score, duration)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
         """
 
-        rows = await conn.fetch(query)
+        await conn.execute(
+            query,
+            call_data["customer_phone"],
+            call_data["channel"],
+            call_data["transcript"],
+            call_data["ai_response"],
+            call_data["outcome"],
+            call_data["confidence_score"],
+            call_data.get("csat_score"),
+            call_data["duration"]
+        )
 
         await conn.close()
 
-        return rows
+    async def get_recent(self, phone: str, limit: int = 5):
+
+        conn = await asyncpg.connect(self.dsn)
+
+        rows = await conn.fetch(
+            """
+            SELECT *
+            FROM call_records
+            WHERE customer_phone = $1
+            ORDER BY timestamp DESC
+            LIMIT $2
+            """,
+            phone,
+            limit
+        )
+
+        await conn.close()
+
+        return [dict(r) for r in rows]

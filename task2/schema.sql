@@ -23,14 +23,14 @@ CREATE TABLE call_records (
     duration INT
 );
 
--- Speeds up customer history lookup
 CREATE INDEX idx_phone
 ON call_records(customer_phone);
+-- speeds up customer history lookups
 
--- Faster recent call queries
 CREATE INDEX idx_timestamp
 ON call_records(timestamp DESC);
+-- used when retrieving recent calls
 
--- Used for analytics queries
 CREATE INDEX idx_outcome
 ON call_records(outcome);
+-- helps analytics queries grouping by outcome

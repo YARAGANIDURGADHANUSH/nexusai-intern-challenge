@@ -2,10 +2,6 @@ import asyncpg
 
 
 async def lowest_resolution_intents(dsn: str):
-    """
-    Returns the intents with the lowest resolution rates.
-    Resolution rate is approximated using CSAT scores.
-    """
 
     conn = await asyncpg.connect(dsn)
 
@@ -13,15 +9,18 @@ async def lowest_resolution_intents(dsn: str):
     SELECT
         intent,
         COUNT(*) AS total_calls,
-        AVG(csat_score) AS avg_csat
+        AVG(csat_score) AS avg_csat,
+        SUM(CASE WHEN outcome='resolved' THEN 1 ELSE 0 END)::float
+            / COUNT(*) AS resolution_rate
     FROM call_records
+    WHERE timestamp >= NOW() - INTERVAL '7 days'
     GROUP BY intent
-    ORDER BY avg_csat ASC
-    LIMIT 3;
+    ORDER BY resolution_rate ASC
+    LIMIT 5
     """
 
     rows = await conn.fetch(query)
 
     await conn.close()
 
-    return rows
+    return [dict(r) for r in rows]

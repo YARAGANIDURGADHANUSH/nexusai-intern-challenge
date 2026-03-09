@@ -1,221 +1,239 @@
 # NexusAI Intern Challenge
 
-This repository contains my implementation of the **NexusAI AI Engineering Internship Challenge**.
+## Overview
 
-The project demonstrates skills in:
-- Async Python programming
-- AI API integration
-- PostgreSQL database design
-- Concurrent data fetching
-- Decision engine logic
-- Automated testing with pytest
+This repository contains my implementation of the **NexusAI Intern Challenge**, which simulates a backend system for an AI-powered telecom support assistant.
 
-The implementation follows the structure requested in the assignment.
+The project demonstrates core backend and AI system concepts including:
 
----
+* asynchronous AI message handling
+* database schema design and analytics
+* parallel service fetching
+* escalation decision logic
+* automated testing
 
-# Repository Structure
-
-nexusai-intern-challenge/
-
-task1/  
-- AI Message Handler implementation
-
-task2/  
-- PostgreSQL schema and database access layer
-
-task3/  
-- Async parallel data fetching system
-
-task4/  
-- Escalation decision engine and pytest tests
-
-ANSWERS.md  
-- Written answers for system design questions
-
-requirements.txt  
-- Python dependencies
-
-README.md  
-- Project documentation
+The goal is to design a system that can automatically assist customers while safely escalating complex cases to human agents.
 
 ---
 
-# Task 1 — AI Message Handler
+# Project Structure
 
-This task implements an async function that processes customer messages and returns a structured AI response.
+```id="3xp1p2"
+nexusai-intern-challenge
+│
+├── task1
+│   ├── handler.py
+│   └── models.py
+│
+├── task2
+│   ├── repository.py
+│   ├── analytics.py
+│   └── schema.sql
+│
+├── task3
+│   └── fetcher.py
+│
+├── task4
+│   ├── escalation.py
+│   └── test_escalation.py
+│
+├── ANSWERS.md
+├── README.md
+└── requirements.txt
+```
 
-### Function
+---
 
+# Task 1 – AI Message Handler
+
+The system includes an asynchronous function:
+
+```
 handle_message(customer_message, customer_id, channel)
+```
 
-### Output
+It processes customer messages and returns a structured response using a `MessageResponse` dataclass.
 
-Returns a `MessageResponse` dataclass containing:
+Key features:
 
-- response_text
-- confidence
-- suggested_action
-- channel_formatted_response
-- error
+* OpenAI API integration
+* telecom-specific system prompt
+* timeout handling (10 seconds)
+* rate limit retry handling
+* empty input validation
+* channel-specific formatting
 
-### Features
-
-- Async API call handling
-- System prompt designed for telecom support
-- Error handling for:
-  - Empty input
-  - API timeout
-  - API rate limiting
-
-Voice responses are restricted to short responses while chat responses may contain longer troubleshooting instructions.
+Voice responses are restricted to short replies, while chat responses may be slightly longer.
 
 ---
 
-# Task 2 — Database Schema
+# Task 2 – Database Schema
 
-A PostgreSQL table `call_records` is designed to store every customer interaction.
+A PostgreSQL table `call_records` stores every support interaction.
 
-### Columns
+Stored data includes:
 
-- customer_phone
-- channel
-- transcript
-- ai_response
-- outcome
-- confidence_score
-- csat_score
-- timestamp
-- duration
+* customer phone
+* communication channel
+* transcript
+* AI response
+* call outcome
+* confidence score
+* CSAT score
+* timestamp
+* call duration
 
-### Constraints
+Indexes were added to optimize:
 
-- Confidence score must be between **0 and 1**
-- CSAT score must be between **1 and 5**
+1. **Customer history lookups**
+2. **Recent interaction queries**
+3. **Analytics queries grouped by outcome**
 
-### Indexes
+A repository class provides asynchronous methods:
 
-Indexes were added to improve query performance:
+```
+save(call_data)
+get_recent(phone, limit=5)
+```
 
-1. customer_phone index  
-   → speeds up customer history lookups
-
-2. timestamp index  
-   → speeds up recent interaction queries
-
-3. outcome index  
-   → improves analytics queries
-
-A Python repository class is implemented to:
-
-- Save new call records
-- Retrieve recent call history
-
-Parameterized queries are used to prevent SQL injection.
+An analytics query returns the **top 5 intent types with the lowest resolution rate in the last 7 days** along with their average CSAT.
 
 ---
 
-# Task 3 — Parallel Data Fetcher
+# Task 3 – Parallel Data Fetching
 
-When a customer calls, the system must fetch data from multiple services simultaneously.
+When a customer contacts support, the system must fetch data from multiple services:
 
-Mock services simulate real systems:
+* CRM system
+* Billing service
+* Ticket history service
 
-- CRM system
-- Billing system
-- Ticket history service
+Each service has simulated latency.
 
-Each service includes simulated network latency.
+Two approaches were implemented:
 
-Two approaches are implemented:
-
-### Sequential Fetch
+### Sequential fetch
 
 Requests are executed one after another.
 
-Total execution time ≈ sum of all requests.
+```
+CRM → Billing → Tickets
+```
 
-### Parallel Fetch
+Total time ≈ sum of all delays.
 
-Requests run concurrently using:
+### Parallel fetch
 
+Using:
+
+```
 asyncio.gather()
+```
 
-Total execution time ≈ slowest request.
+All services are fetched concurrently.
 
-The parallel approach demonstrates significant performance improvement.
+Total time ≈ slowest request instead of sum.
 
-A `CustomerContext` dataclass merges all results and includes:
+Example timing:
 
-- CRM data
-- Billing data
-- Ticket history
-- data_complete flag
-- fetch_time_ms
+```
+Sequential: ~700–900 ms
+Parallel:   ~300–400 ms
+```
 
-The billing service includes a **10% simulated timeout error**, which is handled gracefully.
+This demonstrates a **2x+ performance improvement**, which is important for real-time customer support systems.
+
+The system also includes a **10% simulated timeout for the billing service**. If this occurs, the system continues running and marks the data as incomplete instead of crashing.
 
 ---
 
-# Task 4 — Escalation Decision Engine
+# Task 4 – Escalation Decision Engine
 
-This module determines whether a customer issue should be handled by the AI or escalated to a human agent.
+The escalation engine decides whether a case should be handled by AI or escalated to a human agent.
 
-### Function
+Function:
 
+```
 should_escalate(context, confidence_score, sentiment_score, intent)
+```
 
-### Returns
+It evaluates six rules:
 
+1. AI confidence < 0.65
+2. Sentiment score < -0.6
+3. Same complaint appears 3+ times
+4. Intent = service cancellation
+5. VIP customer with overdue billing
+6. Missing system data with low confidence
+
+The function returns:
+
+```
 (bool, reason)
+```
 
-### Escalation Rules
+Example:
 
-1. Confidence < 0.65 → escalate
-2. Sentiment < -0.6 → escalate
-3. Same complaint repeated 3+ times → escalate
-4. Intent = service_cancellation → always escalate
-5. VIP customer + overdue billing → escalate
-6. Missing data and confidence < 0.80 → escalate
+```
+(True, "angry_customer")
+```
 
-Unit tests are implemented using pytest.
+Unit tests were written using **pytest** to validate all rules and edge cases.
 
-Run tests using:
+---
 
+# Rule Conflict Handling
+
+If multiple escalation rules trigger simultaneously, the system prioritizes **customer safety and business risk**.
+
+For example:
+
+* confidence = 0.90
+* intent = service_cancellation
+
+Even though the confidence is high, the cancellation intent rule takes priority because losing a customer is a high-impact event.
+
+In general, **explicit business-critical intents override AI confidence scores**, ensuring sensitive situations are handled by human agents.
+
+---
+
+# Running Tests
+
+Tests can be executed using:
+
+```id="gx7g1h"
 pytest task4 -v
+```
+
+All escalation logic tests should pass without additional setup.
 
 ---
 
-# Task 5 — Design Questions
+# Technologies Used
 
-Detailed answers for system design questions are provided in:
-
-ANSWERS.md
-
-Topics covered include:
-
-- Streaming speech transcript handling
-- Knowledge base quality risks
-- Escalation flow for angry customers
-- System improvement proposal
+* Python
+* Asyncio
+* PostgreSQL
+* asyncpg
+* pytest
+* OpenAI API
 
 ---
 
-# Requirements
+# Future Improvements
 
-Install dependencies:
+Potential enhancements include:
 
-pip install -r requirements.txt
+* vector search over historical support cases
+* improved intent classification
+* real-time monitoring dashboards
+* knowledge base auto-learning with human validation
 
-Dependencies include:
-
-- openai
-- asyncpg
-- pytest
-- python-dotenv
+These improvements would help the AI system provide more accurate responses and reduce escalation rates.
 
 ---
 
 # Author
 
-Durga Dhanush
+Durga Dhanush Yaragani
+AI / ML Engineer (Learning Path)
