@@ -2,23 +2,53 @@
 
 ## Overview
 
-This repository contains my implementation of the **NexusAI Intern Challenge**, which simulates a backend system for an AI-powered telecom support assistant.
+This repository contains my implementation of the **NexusAI Intern Challenge**, which simulates a backend system for an **AI-powered telecom customer support assistant**.
 
-The project demonstrates core backend and AI system concepts including:
+The system processes customer messages, retrieves relevant service data, analyzes interactions, and determines whether the issue should be handled automatically by AI or escalated to a human agent.
 
-* asynchronous AI message handling
-* database schema design and analytics
-* parallel service fetching
-* escalation decision logic
-* automated testing
+The project demonstrates key backend engineering concepts including:
 
-The goal is to design a system that can automatically assist customers while safely escalating complex cases to human agents.
+* Asynchronous AI request handling
+* PostgreSQL database schema design
+* Analytics queries
+* Parallel API data fetching
+* Escalation decision logic
+* Automated unit testing
+
+---
+
+# System Architecture
+
+The system follows a modular architecture where customer messages flow through multiple components.
+
+Customer Message
+→ AI Message Handler (Task 1)
+→ Intent + Sentiment Detection
+→ Escalation Decision Engine (Task 4)
+
+If the AI can resolve the issue:
+
+AI Response → Customer
+
+If escalation is required:
+
+Context + Transcript → Human Support Agent
+
+Supporting services are fetched in parallel:
+
+* CRM Service
+* Billing Service
+* Ticket History Service
+
+These services are retrieved using **async parallel fetching** (Task 3).
+
+All interactions are stored in a PostgreSQL database for analytics and reporting (Task 2).
 
 ---
 
 # Project Structure
 
-```id="3xp1p2"
+```
 nexusai-intern-challenge
 │
 ├── task1
@@ -26,8 +56,8 @@ nexusai-intern-challenge
 │   └── models.py
 │
 ├── task2
-│   ├── repository.py
 │   ├── analytics.py
+│   ├── repository.py
 │   └── schema.sql
 │
 ├── task3
@@ -39,7 +69,8 @@ nexusai-intern-challenge
 │
 ├── ANSWERS.md
 ├── README.md
-└── requirements.txt
+├── requirements.txt
+└── .gitignore
 ```
 
 ---
@@ -52,77 +83,90 @@ The system includes an asynchronous function:
 handle_message(customer_message, customer_id, channel)
 ```
 
-It processes customer messages and returns a structured response using a `MessageResponse` dataclass.
+The handler processes a customer support message using an AI model and returns a structured response.
 
 Key features:
 
 * OpenAI API integration
-* telecom-specific system prompt
-* timeout handling (10 seconds)
-* rate limit retry handling
-* empty input validation
-* channel-specific formatting
+* Async request handling
+* Dataclass response model
+* Input validation
+* Timeout handling
+* Rate-limit retry handling
+* Channel-specific response formatting
 
-Voice responses are restricted to short replies, while chat responses may be slightly longer.
+Voice responses are kept shorter for clarity, while chat responses can provide slightly more detailed instructions.
+
+The response format:
+
+```
+MessageResponse(
+    response_text,
+    confidence,
+    suggested_action,
+    channel_formatted_response,
+    error
+)
+```
 
 ---
 
-# Task 2 – Database Schema
+# Task 2 – Database Schema & Analytics
 
-A PostgreSQL table `call_records` stores every support interaction.
+A PostgreSQL table `call_records` stores support interaction data.
 
-Stored data includes:
+Stored fields include:
 
-* customer phone
-* communication channel
-* transcript
+* Customer phone number
+* Communication channel
+* Transcript
 * AI response
-* call outcome
-* confidence score
+* Call outcome
+* Confidence score
 * CSAT score
-* timestamp
-* call duration
+* Timestamp
+* Call duration
 
-Indexes were added to optimize:
+Indexes were created to optimize common queries:
 
-1. **Customer history lookups**
-2. **Recent interaction queries**
-3. **Analytics queries grouped by outcome**
+* Customer history lookup
+* Recent call retrieval
+* Analytics queries grouped by outcome
 
-A repository class provides asynchronous methods:
+Repository functions:
 
 ```
 save(call_data)
 get_recent(phone, limit=5)
 ```
 
-An analytics query returns the **top 5 intent types with the lowest resolution rate in the last 7 days** along with their average CSAT.
+Analytics query:
+
+Returns the **top 5 intents with the lowest resolution rate in the last 7 days** along with their average CSAT score.
+
+This helps identify problem areas in the support system.
 
 ---
 
 # Task 3 – Parallel Data Fetching
 
-When a customer contacts support, the system must fetch data from multiple services:
+When a customer contacts support, the system retrieves data from multiple services:
 
 * CRM system
 * Billing service
 * Ticket history service
 
-Each service has simulated latency.
+Two approaches are demonstrated.
 
-Two approaches were implemented:
-
-### Sequential fetch
+### Sequential Fetch
 
 Requests are executed one after another.
 
-```
 CRM → Billing → Tickets
-```
 
-Total time ≈ sum of all delays.
+Total latency equals the sum of all request times.
 
-### Parallel fetch
+### Parallel Fetch
 
 Using:
 
@@ -130,26 +174,24 @@ Using:
 asyncio.gather()
 ```
 
-All services are fetched concurrently.
+All services are executed simultaneously.
 
-Total time ≈ slowest request instead of sum.
+Total latency becomes roughly the duration of the slowest request instead of the sum.
 
 Example timing:
 
-```
 Sequential: ~700–900 ms
-Parallel:   ~300–400 ms
-```
+Parallel: ~300–400 ms
 
-This demonstrates a **2x+ performance improvement**, which is important for real-time customer support systems.
+This demonstrates the performance benefit of asynchronous concurrency in backend systems.
 
-The system also includes a **10% simulated timeout for the billing service**. If this occurs, the system continues running and marks the data as incomplete instead of crashing.
+The billing service also simulates a **10% timeout scenario**, where the system gracefully handles failures instead of crashing.
 
 ---
 
 # Task 4 – Escalation Decision Engine
 
-The escalation engine decides whether a case should be handled by AI or escalated to a human agent.
+The escalation engine determines whether the AI can resolve a case or if it should be escalated to a human support agent.
 
 Function:
 
@@ -157,19 +199,25 @@ Function:
 should_escalate(context, confidence_score, sentiment_score, intent)
 ```
 
-It evaluates six rules:
+Escalation rules include:
 
-1. AI confidence < 0.65
-2. Sentiment score < -0.6
-3. Same complaint appears 3+ times
-4. Intent = service cancellation
-5. VIP customer with overdue billing
-6. Missing system data with low confidence
+* AI confidence < 0.65
+* Sentiment score < -0.6
+* Repeated complaints (3+ times)
+* Service cancellation intent
+* VIP customer with overdue billing
+* Missing system data combined with low confidence
 
 The function returns:
 
 ```
-(bool, reason)
+(True, "reason")
+```
+
+or
+
+```
+(False, "ai_can_handle")
 ```
 
 Example:
@@ -178,58 +226,78 @@ Example:
 (True, "angry_customer")
 ```
 
-Unit tests were written using **pytest** to validate all rules and edge cases.
+Unit tests were implemented using **pytest** to validate escalation rules and edge cases.
 
 ---
 
-# Rule Conflict Handling
+# Example AI Interaction
 
-If multiple escalation rules trigger simultaneously, the system prioritizes **customer safety and business risk**.
+Customer message:
 
-For example:
+```
+"My internet has been down for 2 days and I already called support."
+```
 
-* confidence = 0.90
-* intent = service_cancellation
+Channel:
 
-Even though the confidence is high, the cancellation intent rule takes priority because losing a customer is a high-impact event.
+```
+chat
+```
 
-In general, **explicit business-critical intents override AI confidence scores**, ensuring sensitive situations are handled by human agents.
+AI Response:
+
+```
+{
+  "response_text": "I'm sorry you're experiencing connectivity issues. Please restart your router and check your connection. If the problem continues, I can escalate this to a technician.",
+  "confidence": 0.82,
+  "suggested_action": "troubleshoot",
+  "channel_formatted_response": "Please restart your router and check your internet connection.",
+  "error": null
+}
+```
 
 ---
 
 # Running Tests
 
-Tests can be executed using:
+To run escalation logic tests:
 
-```id="gx7g1h"
+```
 pytest task4 -v
 ```
 
-All escalation logic tests should pass without additional setup.
+Example output:
+
+```
+test_low_confidence ........ PASSED
+test_angry_customer ........ PASSED
+test_cancellation .......... PASSED
+```
 
 ---
 
 # Technologies Used
 
-* Python
-* Asyncio
-* PostgreSQL
-* asyncpg
-* pytest
-* OpenAI API
+Python
+Asyncio
+PostgreSQL
+asyncpg
+pytest
+OpenAI API
 
 ---
 
 # Future Improvements
 
-Potential enhancements include:
+Potential improvements include:
 
-* vector search over historical support cases
-* improved intent classification
-* real-time monitoring dashboards
-* knowledge base auto-learning with human validation
+* Vector search for similar historical support cases
+* Improved intent classification models
+* Knowledge base learning with human review
+* Real-time monitoring dashboards
+* Automated ticket creation workflows
 
-These improvements would help the AI system provide more accurate responses and reduce escalation rates.
+These enhancements could further reduce escalation rates and improve AI response accuracy.
 
 ---
 
